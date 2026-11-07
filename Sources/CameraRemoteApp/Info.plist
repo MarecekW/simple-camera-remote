@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Embedded into the camera-remote-app binary (__TEXT,__info_plist; see
+     Package.swift) so `swift run camera-remote-app` sees cameras:
+     ImageCaptureCore only reports them to processes with a bundle identity.
+     The .app assembled by scripts/make-app.sh gets its own Info.plist. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>   <string>dev.marekkramar.SimpleCameraRemote</string>
+    <key>CFBundleName</key>         <string>Simple Camera Remote</string>
+</dict>
+</plist>

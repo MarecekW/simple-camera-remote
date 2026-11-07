@@ -1,0 +1,130 @@
+# Build Simple Camera Remote on macOS and publish a GitHub release with
+# simple-camera-remote.app.zip attached.  Tags containing "beta" become
+# pre-releases; any other tag becomes a regular release marked Latest.
+#
+# How to release:
+#   1. Push a tag:  git tag vX.Y.Z && git push origin vX.Y.Z
+#                   (or vX.Y.Z-beta.N for a pre-release)
+#   2. Or GitHub → Actions → "Release" → Run workflow with a tag
+#
+# The tag is the only place the version lives; make-app.sh takes it from
+# APP_VERSION here and from `git describe` for local builds.
+#
+# Download: repo → Releases → simple-camera-remote.app.zip
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.2.0 or v0.3.0-beta.1)"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: macos-26
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0 # full history: make-app.sh's build number is the commit count
+
+      - name: Select the newest Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+          xcodebuild -version
+
+      - name: Resolve release tag
+        id: version
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            TAG="$REF_NAME"
+          else
+            echo "No release tag: push a v* tag or pass one when running the workflow." >&2
+            exit 1
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
+            echo "Invalid tag: $TAG (expected vX.Y.Z or vX.Y.Z-beta.N)" >&2
+            exit 1
+          fi
+          # A manual run for an existing tag must build that tag's commit, not
+          # the branch it was started from.
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git checkout -q "$TAG"
+          fi
+          # The commit actually built; a new tag is created here too.
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build .app and zip
+        env:
+          APP_VERSION: ${{ steps.version.outputs.tag }}
+        run: ./scripts/make-release.sh
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          SHA=$(shasum -a 256 "build/simple-camera-remote.app.zip" | awk '{print $1}')
+          SIZE=$(stat -f '%z' "build/simple-camera-remote.app.zip")
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "size_kb=$((SIZE / 1024))" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ steps.version.outputs.commit }}
+          name: Simple Camera Remote ${{ steps.version.outputs.tag }}
+          prerelease: ${{ contains(steps.version.outputs.tag, 'beta') }}
+          make_latest: ${{ !contains(steps.version.outputs.tag, 'beta') }}
+          generate_release_notes: true
+          files: build/simple-camera-remote.app.zip
+          body: |
+            ## Install (macOS 14+, Apple Silicon)
+
+            1. Download **`simple-camera-remote.app.zip`** below.
+            2. Unzip and drag **Simple Camera Remote.app** to `/Applications`.
+            3. **First launch only:** macOS blocks the app because it isn't signed with a paid Apple Developer ID.
+               Open the app and close the warning, then go to **System Settings › Privacy & Security**, click
+               **Open Anyway** and confirm. macOS won't ask again.
+               Or, in Terminal: `xattr -dr com.apple.quarantine "/Applications/Simple Camera Remote.app"`
+            4. Turn the camera on, connect it to the Mac over USB, and choose **Remote Shoot (PC Remote)** on the camera.
+
+            ### Cameras
+            - **Sony A6700** — tested on hardware (5,000+ shots)
+            - Other Sony Alphas with PC Remote over USB — untested; [report how yours does](https://github.com/${{ github.repository }}/issues/new/choose)
+
+            ### Build info
+            | | |
+            |---|---|
+            | Commit | `${{ steps.version.outputs.commit }}` |
+            | Workflow run | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+            | ZIP size | ${{ steps.checksum.outputs.size_kb }} KB |
+            | SHA-256 | `${{ steps.checksum.outputs.sha256 }}` |

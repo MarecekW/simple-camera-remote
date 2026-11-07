@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Embedded into the camera-remote-cli binary (__TEXT,__info_plist; see
+     Package.swift): ImageCaptureCore only reports cameras to processes with a
+     bundle identity. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>   <string>dev.marekkramar.SimpleCameraRemote.cli</string>
+    <key>CFBundleName</key>         <string>camera-remote-cli</string>
+</dict>
+</plist>

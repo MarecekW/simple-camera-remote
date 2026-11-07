@@ -1,0 +1,19 @@
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj
+.DS_Store
+
+# Sony Camera Remote SDK download, kept locally as protocol documentation
+# only — the app doesn't use it, and Sony's licence doesn't
+# cover redistributing it.
+sdk/
+
+# Output of scripts/make-app.sh — the assembled .app bundle.
+build/
+
+# Editor settings.
+.vscode/
+
+# Claude Code's local settings and state.
+.claude/
